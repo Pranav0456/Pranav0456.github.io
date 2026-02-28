@@ -1,19 +1,35 @@
 import React, { useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Upload, Wand2, Eraser, Pen, RotateCcw, Image as ImageIcon, Loader2, Download, Trash2, Github } from 'lucide-react';
+import { Upload, Wand2, Eraser, Pen, RotateCcw, Image as ImageIcon, Loader2, Download, Trash2, Github, Palette, Sparkles, HelpCircle, LayoutGrid, FlaskConical } from 'lucide-react';
 import { DrawingCanvas } from './components/DrawingCanvas';
 import { refineSketch } from './services/geminiService';
-import { AppState } from './types';
+import { AppState, ArtStyle, GalleryItem } from './types';
+import { Tutorial } from './components/Tutorial';
+import { Gallery } from './components/Gallery';
+import { TestingSuite } from './components/TestingSuite';
+
+const ART_STYLES: { id: ArtStyle; label: string; icon: string }[] = [
+  { id: 'pencil', label: 'Pencil Sketch', icon: '✏️' },
+  { id: 'charcoal', label: 'Charcoal', icon: '🌑' },
+  { id: 'watercolor', label: 'Watercolor', icon: '🎨' },
+  { id: 'oil', label: 'Oil Painting', icon: '🖼️' },
+  { id: 'digital', label: 'Digital Art', icon: '💻' },
+  { id: 'minimalist', label: 'Minimalist', icon: '✨' },
+];
 
 export default function App() {
   const [state, setState] = useState<AppState>({
     isRefining: false,
     resultImage: null,
     error: null,
+    selectedStyle: 'pencil',
   });
   const [inputImage, setInputImage] = useState<string | null>(null);
   const [refinementDetails, setRefinementDetails] = useState<string>('');
   const [activeTab, setActiveTab] = useState<'draw' | 'upload'>('draw');
+  const [gallery, setGallery] = useState<GalleryItem[]>([]);
+  const [isTutorialOpen, setIsTutorialOpen] = useState(false);
+  const [showTesting, setShowTesting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -32,20 +48,34 @@ export default function App() {
 
     setState(prev => ({ ...prev, isRefining: true, error: null }));
     try {
-      const result = await refineSketch(inputImage, refinementDetails);
+      const result = await refineSketch(inputImage, state.selectedStyle, refinementDetails);
       setState(prev => ({ ...prev, resultImage: result, isRefining: false }));
+      
+      // Add to gallery
+      const newItem: GalleryItem = {
+        id: Math.random().toString(36).substring(7),
+        image: result,
+        style: state.selectedStyle,
+        timestamp: Date.now(),
+      };
+      setGallery(prev => [newItem, ...prev]);
     } catch (err: any) {
       setState(prev => ({ ...prev, error: err.message || 'Failed to refine sketch', isRefining: false }));
     }
   };
 
-  const handleDownload = () => {
-    if (state.resultImage) {
+  const handleDownload = (image?: string) => {
+    const targetImage = image || state.resultImage;
+    if (targetImage) {
       const link = document.createElement('a');
-      link.href = state.resultImage;
+      link.href = targetImage;
       link.download = 'refined-sketch.png';
       link.click();
     }
+  };
+
+  const handleDeleteGalleryItem = (id: string) => {
+    setGallery(prev => prev.filter(item => item.id !== id));
   };
 
   const reset = () => {
@@ -54,7 +84,9 @@ export default function App() {
       isRefining: false,
       resultImage: null,
       error: null,
+      selectedStyle: 'pencil',
     });
+    setRefinementDetails('');
   };
 
   return (
@@ -70,6 +102,21 @@ export default function App() {
           </div>
           <div className="flex items-center gap-4">
             <button 
+              onClick={() => setIsTutorialOpen(true)}
+              className="p-2 text-zinc-400 hover:text-zinc-900 transition-colors"
+              title="Help & Tutorial"
+            >
+              <HelpCircle className="w-5 h-5" />
+            </button>
+            <button 
+              onClick={() => setShowTesting(!showTesting)}
+              className={`p-2 transition-colors ${showTesting ? 'text-emerald-600' : 'text-zinc-400 hover:text-zinc-900'}`}
+              title="System Diagnostics"
+            >
+              <FlaskConical className="w-5 h-5" />
+            </button>
+            <div className="w-px h-6 bg-zinc-200 mx-1" />
+            <button 
               onClick={reset}
               className="text-sm font-medium text-zinc-500 hover:text-zinc-900 transition-colors"
             >
@@ -82,7 +129,8 @@ export default function App() {
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto px-4 py-12">
+      <main className="max-w-7xl mx-auto px-4 py-12 space-y-24">
+        {/* Hero / Input Section */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-start">
           
           {/* Input Section */}
@@ -165,9 +213,33 @@ export default function App() {
                 animate={{ opacity: 1, y: 0 }}
                 className="space-y-6"
               >
+                {/* Style Selector */}
                 <div className="bg-white rounded-2xl border border-zinc-200 shadow-sm p-6 space-y-4">
                   <div className="flex items-center gap-2 text-zinc-900 font-semibold">
-                    <Wand2 className="w-4 h-4" />
+                    <Palette className="w-4 h-4" />
+                    <h3>Artist Style</h3>
+                  </div>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                    {ART_STYLES.map((style) => (
+                      <button
+                        key={style.id}
+                        onClick={() => setState(prev => ({ ...prev, selectedStyle: style.id }))}
+                        className={`flex flex-col items-center gap-2 p-3 rounded-xl border-2 transition-all ${
+                          state.selectedStyle === style.id 
+                            ? 'border-zinc-900 bg-zinc-900 text-white shadow-md' 
+                            : 'border-zinc-100 bg-zinc-50 text-zinc-500 hover:border-zinc-300 hover:bg-zinc-100'
+                        }`}
+                      >
+                        <span className="text-2xl">{style.icon}</span>
+                        <span className="text-xs font-bold">{style.label}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="bg-white rounded-2xl border border-zinc-200 shadow-sm p-6 space-y-4">
+                  <div className="flex items-center gap-2 text-zinc-900 font-semibold">
+                    <Sparkles className="w-4 h-4" />
                     <h3>Refinement Details</h3>
                   </div>
                   <textarea
@@ -216,14 +288,39 @@ export default function App() {
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
                     exit={{ opacity: 0 }}
-                    className="absolute inset-0 flex flex-col items-center justify-center bg-zinc-50/50 backdrop-blur-sm z-10"
+                    className="absolute inset-0 flex flex-col items-center justify-center bg-zinc-50/80 backdrop-blur-sm z-10"
                   >
                     <div className="relative">
-                      <div className="w-24 h-24 border-4 border-zinc-200 border-t-zinc-900 rounded-full animate-spin" />
-                      <Wand2 className="w-8 h-8 text-zinc-900 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" />
+                      <motion.div 
+                        animate={{ rotate: 360 }}
+                        transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
+                        className="w-32 h-32 border-4 border-zinc-100 border-t-zinc-900 rounded-full"
+                      />
+                      <motion.div
+                        animate={{ scale: [1, 1.2, 1] }}
+                        transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
+                        className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2"
+                      >
+                        <Wand2 className="w-10 h-10 text-zinc-900" />
+                      </motion.div>
                     </div>
-                    <p className="mt-6 font-medium text-zinc-900">AI is working its magic...</p>
-                    <p className="text-sm text-zinc-500">This usually takes about 5-10 seconds</p>
+                    <motion.div 
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: 0.5 }}
+                      className="mt-8 text-center"
+                    >
+                      <p className="font-bold text-xl text-zinc-900">Refining your masterpiece...</p>
+                      <p className="text-sm text-zinc-500 mt-2">Applying {ART_STYLES.find(s => s.id === state.selectedStyle)?.label} style</p>
+                      <div className="mt-6 w-48 h-1.5 bg-zinc-200 rounded-full overflow-hidden mx-auto">
+                        <motion.div 
+                          initial={{ x: "-100%" }}
+                          animate={{ x: "0%" }}
+                          transition={{ duration: 8, ease: "easeOut" }}
+                          className="w-full h-full bg-zinc-900"
+                        />
+                      </div>
+                    </motion.div>
                   </motion.div>
                 ) : state.resultImage ? (
                   <motion.div 
@@ -245,7 +342,7 @@ export default function App() {
                         <span className="text-sm font-medium">Refinement Complete</span>
                       </div>
                       <button
-                        onClick={handleDownload}
+                        onClick={() => handleDownload()}
                         className="flex items-center gap-2 px-4 py-2 bg-zinc-100 hover:bg-zinc-200 rounded-lg text-sm font-semibold transition-colors"
                       >
                         <Download className="w-4 h-4" />
@@ -287,7 +384,47 @@ export default function App() {
             </div>
           </section>
         </div>
+
+        {/* Testing Suite Section */}
+        <AnimatePresence>
+          {showTesting && (
+            <motion.section
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={{ opacity: 0, height: 0 }}
+              className="overflow-hidden"
+            >
+              <TestingSuite />
+            </motion.section>
+          )}
+        </AnimatePresence>
+
+        {/* Gallery Section */}
+        <section className="space-y-12">
+          <div className="flex items-center justify-between">
+            <div className="space-y-2">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-zinc-100 rounded-xl flex items-center justify-center">
+                  <LayoutGrid className="w-6 h-6 text-zinc-900" />
+                </div>
+                <h2 className="text-3xl font-bold tracking-tight text-zinc-900">Your Gallery</h2>
+              </div>
+              <p className="text-zinc-500">A collection of your refined masterpieces.</p>
+            </div>
+            <div className="text-sm font-bold text-zinc-400 uppercase tracking-widest">
+              {gallery.length} Items
+            </div>
+          </div>
+          
+          <Gallery 
+            items={gallery} 
+            onDelete={handleDeleteGalleryItem} 
+            onDownload={handleDownload} 
+          />
+        </section>
       </main>
+
+      <Tutorial isOpen={isTutorialOpen} onClose={() => setIsTutorialOpen(false)} />
 
       <footer className="border-t border-zinc-200 bg-white py-12">
         <div className="max-w-7xl mx-auto px-4 text-center space-y-4">

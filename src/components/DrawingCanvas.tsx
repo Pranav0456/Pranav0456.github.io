@@ -1,5 +1,6 @@
 import React, { useRef, useState, useEffect } from 'react';
 import { Stage, Layer, Line, Rect } from 'react-konva';
+import { Download, Pen } from 'lucide-react';
 import { DrawingLine } from '../types';
 
 interface DrawingCanvasProps {
@@ -10,6 +11,8 @@ interface DrawingCanvasProps {
 
 export const DrawingCanvas: React.FC<DrawingCanvasProps> = ({ onExport, width, height }) => {
   const [tool, setTool] = useState<string>('pen');
+  const [brushSize, setBrushSize] = useState<number>(3);
+  const [isSmooth, setIsSmooth] = useState<boolean>(true);
   const [lines, setLines] = useState<DrawingLine[]>([]);
   const isDrawing = useRef(false);
   const stageRef = useRef<any>(null);
@@ -17,7 +20,12 @@ export const DrawingCanvas: React.FC<DrawingCanvasProps> = ({ onExport, width, h
   const handleMouseDown = (e: any) => {
     isDrawing.current = true;
     const pos = e.target.getStage().getPointerPosition();
-    setLines([...lines, { tool, points: [pos.x, pos.y], color: '#000000', strokeWidth: tool === 'eraser' ? 20 : 2 }]);
+    setLines([...lines, { 
+      tool, 
+      points: [pos.x, pos.y], 
+      color: '#000000', 
+      strokeWidth: tool === 'eraser' ? brushSize * 5 : brushSize 
+    }]);
   };
 
   const handleMouseMove = (e: any) => {
@@ -45,6 +53,16 @@ export const DrawingCanvas: React.FC<DrawingCanvasProps> = ({ onExport, width, h
 
   const handleClear = () => {
     setLines([]);
+  };
+
+  const handleSave = () => {
+    if (stageRef.current) {
+      const dataUrl = stageRef.current.toDataURL();
+      const link = document.createElement('a');
+      link.href = dataUrl;
+      link.download = 'my-sketch.png';
+      link.click();
+    }
   };
 
   const handleExport = () => {
@@ -82,7 +100,33 @@ export const DrawingCanvas: React.FC<DrawingCanvasProps> = ({ onExport, width, h
         >
           Clear
         </button>
+        <div className="w-px h-6 bg-zinc-300 mx-1" />
+        <div className="flex items-center gap-2 px-2">
+          <Pen className="w-3 h-3 text-zinc-400" />
+          <input 
+            type="range" 
+            min="1" 
+            max="20" 
+            value={brushSize} 
+            onChange={(e) => setBrushSize(parseInt(e.target.value))}
+            className="w-20 h-1 bg-zinc-300 rounded-lg appearance-none cursor-pointer accent-zinc-900"
+          />
+        </div>
+        <div className="w-px h-6 bg-zinc-300 mx-1" />
+        <button
+          onClick={() => setIsSmooth(!isSmooth)}
+          className={`px-3 py-1 rounded text-xs font-bold uppercase transition-colors ${isSmooth ? 'bg-zinc-900 text-white' : 'bg-zinc-200 text-zinc-500 hover:bg-zinc-300'}`}
+        >
+          Smooth
+        </button>
         <div className="flex-1" />
+        <button
+          onClick={handleSave}
+          title="Save to computer"
+          className="p-2 text-zinc-600 hover:text-zinc-900 hover:bg-zinc-200 rounded-lg transition-colors"
+        >
+          <Download className="w-4 h-4" />
+        </button>
         <button
           onClick={handleExport}
           className="px-4 py-1 bg-emerald-600 text-white rounded hover:bg-emerald-700 font-medium transition-colors"
@@ -111,9 +155,10 @@ export const DrawingCanvas: React.FC<DrawingCanvasProps> = ({ onExport, width, h
                 points={line.points}
                 stroke={line.color}
                 strokeWidth={line.strokeWidth}
-                tension={0.5}
+                tension={isSmooth ? 0.5 : 0}
                 lineCap="round"
                 lineJoin="round"
+                perfectDrawEnabled={false}
                 globalCompositeOperation={
                   line.tool === 'eraser' ? 'destination-out' : 'source-over'
                 }
